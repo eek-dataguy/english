@@ -62,6 +62,17 @@ const $ = (tag, attrs, ...kids) => {
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0;[a[i], a[j]] = [a[j], a[i]]; } return a; }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function stemHTML(s) { return esc(s).replace(/ ?_{3,} ?/g, ' <b class="blank">______</b> '); }
+function explainHTML(it) {
+  if (it.fs) {
+    let h = esc(it.fs);
+    if (it.aw) {
+      const re = new RegExp('(' + it.aw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'i');
+      h = h.replace(re, '<b class="blank">$1</b>');
+    }
+    return '<span class="lbl">Completed sentence</span>' + h;
+  }
+  return '<span class="lbl">Correct answer</span><b class="blank">' + esc(it.answerText || '') + '</b>';
+}
 function pctClass(p) { return p >= 0.8 ? 'good' : p >= 0.6 ? 'mid' : 'low'; }
 function clear() { APP.innerHTML = ''; }
 
@@ -177,7 +188,11 @@ function runQuiz(quiz, cefr, backHash) {
   clear();
   const items = shuffle(quiz.questions).map(it => {
     const order = shuffle(it.options.map((o, i) => i));
-    return { stem: it.q, opts: order.map(i => it.options[i]), correct: order.indexOf(it.answer), cefr: it.cefr || cefr };
+    return {
+      stem: it.q, opts: order.map(i => it.options[i]),
+      correct: order.indexOf(it.answer), cefr: it.cefr || cefr,
+      fs: it.fs || '', aw: it.aw || '', answerText: it.options[it.answer]
+    };
   });
   const picks = new Array(items.length).fill(-1);
   let graded = false;
@@ -238,6 +253,7 @@ function runQuiz(quiz, cefr, backHash) {
       }
       labs[it.correct].classList.add('correct');
       labs[it.correct].querySelector('.mk').textContent = '✓ correct';
+      qEls[qi].append($('div', { class: 'explain' + (picks[qi] !== it.correct ? ' miss' : ''), html: explainHTML(it) }));
     });
     recordAttempt(quiz.id, cefr, correct, items.length, perLevel, cefr + ' · ' + quiz.title);
 
@@ -271,7 +287,11 @@ function runPlacement(quiz) {
   clear();
   const items = shuffle(quiz.questions).map(it => {
     const order = shuffle(it.options.map((o, i) => i));
-    return { stem: it.q, opts: order.map(i => it.options[i]), correct: order.indexOf(it.answer), cefr: it.cefr };
+    return {
+      stem: it.q, opts: order.map(i => it.options[i]),
+      correct: order.indexOf(it.answer), cefr: it.cefr,
+      fs: it.fs || '', aw: it.aw || '', answerText: it.options[it.answer]
+    };
   });
   const picks = new Array(items.length).fill(-1);
   APP.append($('h1', null, 'Placement test'));
@@ -310,6 +330,7 @@ function runPlacement(quiz) {
       if (picks[qi] === it.correct) per[it.cefr].c++;
       if (picks[qi] >= 0 && picks[qi] !== it.correct) { labs[picks[qi]].classList.add('wrong'); labs[picks[qi]].querySelector('.mk').textContent = '✗'; }
       labs[it.correct].classList.add('correct'); labs[it.correct].querySelector('.mk').textContent = '✓';
+      qEls[qi].append($('div', { class: 'explain' + (picks[qi] !== it.correct ? ' miss' : ''), html: explainHTML(it) }));
     });
     let totalC = 0, totalT = 0;
     for (const k in per) { totalC += per[k].c; totalT += per[k].t; }

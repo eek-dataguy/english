@@ -34,7 +34,15 @@ def clean_q(it):
     q = re.sub(r'_{2,}|\.{3,}|…', ' ______ ', q)
     q = re.sub(r'\s+', ' ', q).strip()
     opts = [re.sub(r'\s+', ' ', o).strip() for o in it['options']]
-    return {'q': q, 'options': opts, 'answer': it['answer']}
+    out = {'q': q, 'options': opts, 'answer': it['answer']}
+    # the source's completed sentence, used as the post-answer explanation
+    fs = re.sub(r'\s+', ' ', (it.get('full') or '')).strip()
+    aw = re.sub(r'\s+', ' ', (it.get('answer_word') or '')).strip()
+    if fs and fs.lower() != q.lower() and '______' not in fs and 5 < len(fs) < 320:
+        out['fs'] = fs
+        if aw:
+            out['aw'] = aw
+    return out
 
 quizzes = []
 seen_ids = set()

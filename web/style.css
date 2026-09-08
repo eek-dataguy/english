@@ -121,7 +121,18 @@ ul.quizlist li.done{border-color:var(--good)}
 .opt.wrong{background:var(--bad-bg); border-color:var(--bad)}
 .opt .mk{margin-left:auto; font-weight:700; flex-shrink:0; white-space:nowrap}
 .opt.correct .mk{color:var(--good)} .opt.wrong .mk{color:var(--bad)}
-.explain{margin-top:10px; font-size:.86rem; color:var(--muted)}
+.explain{
+  margin-top:12px; padding:10px 12px; font-size:.9rem; line-height:1.5;
+  border:1px solid var(--line); border-radius:9px; background:var(--bg);
+  overflow-wrap:break-word;
+}
+.explain.miss{border-color:var(--bad); background:var(--bad-bg)}
+.explain .lbl{
+  display:block; font-size:.68rem; font-weight:700; letter-spacing:.6px;
+  text-transform:uppercase; color:var(--muted); margin-bottom:3px;
+}
+.explain .blank{color:var(--accent); font-weight:700; letter-spacing:normal}
+.explain.miss .blank{color:var(--bad)}
 
 .sticky-actions{
   position:sticky; bottom:0; background:linear-gradient(transparent,var(--bg) 30%);
