@@ -1,0 +1,15 @@
+# Source grammar-test books (copyrighted third-party PDFs) — keep local only
+*.pdf
+
+# Regeneratable extraction intermediates
+build/tests_dec.txt
+build/*_quizzes.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Vercel
+.vercel/
