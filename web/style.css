@@ -30,12 +30,13 @@ a{color:var(--accent); text-decoration:none}
 a:hover{text-decoration:underline}
 
 .topbar{
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px 12px;
+  flex-wrap:wrap;
   padding:12px clamp(12px,4vw,28px); border-bottom:1px solid var(--line);
   background:var(--card); position:sticky; top:0; z-index:10;
 }
-.brand{font-weight:700; font-size:1.05rem}
-.topbar nav{display:flex; align-items:center; gap:clamp(8px,2.5vw,20px)}
+.brand{font-weight:700; font-size:1.05rem; white-space:nowrap}
+.topbar nav{display:flex; align-items:center; flex-wrap:wrap; gap:clamp(10px,2.5vw,20px)}
 .topbar nav a{color:var(--ink); font-weight:500}
 #themeBtn{
   border:1px solid var(--line); background:transparent; color:var(--ink);
@@ -58,7 +59,7 @@ h2{font-size:1.15rem; margin:1.6em 0 .6em}
 .btn:hover{filter:brightness(1.05); text-decoration:none}
 .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
 
-.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; margin:18px 0}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr)); gap:14px; margin:18px 0}
 .card{
   background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
   padding:18px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:8px;
@@ -92,29 +93,33 @@ table.stats td.num{text-align:right; font-variant-numeric:tabular-nums}
 ul.quizlist{list-style:none; padding:0; margin:14px 0; display:flex; flex-direction:column; gap:8px}
 ul.quizlist li{
   background:var(--card); border:1px solid var(--line); border-radius:11px;
-  padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px;
+  padding:12px 14px; display:flex; justify-content:space-between; align-items:center;
+  gap:10px 12px; flex-wrap:wrap;
 }
-ul.quizlist li .t{font-weight:500}
-ul.quizlist li .s{color:var(--muted); font-size:.8rem}
+ul.quizlist li > *{min-width:0}
+ul.quizlist li .t{font-weight:500; overflow-wrap:anywhere}
+ul.quizlist li .s{color:var(--muted); font-size:.8rem; overflow-wrap:anywhere}
 ul.quizlist li.done{border-color:var(--good)}
 .pill{font-size:.72rem; padding:2px 8px; border-radius:999px; background:var(--line); color:var(--muted); white-space:nowrap}
 .pill.score{background:var(--good-bg); color:var(--good)}
 .pill.score.low{background:var(--bad-bg); color:var(--bad)}
 
 .q{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin:12px 0; box-shadow:var(--shadow)}
-.q .stem{font-weight:500; margin-bottom:12px}
+.q .stem{font-weight:500; margin-bottom:12px; overflow-wrap:break-word}
+.opt span{overflow-wrap:anywhere}
 .q .stem .blank{color:var(--accent); letter-spacing:1px}
 .q .stem .n{color:var(--muted); margin-right:8px; font-variant-numeric:tabular-nums}
 .opts{display:flex; flex-direction:column; gap:8px}
 .opt{
-  display:flex; gap:10px; align-items:flex-start; padding:10px 12px;
+  display:flex; gap:8px 10px; align-items:flex-start; flex-wrap:wrap; padding:10px 12px;
   border:1px solid var(--line); border-radius:10px; cursor:pointer; background:transparent;
 }
 .opt:hover{border-color:var(--accent)}
-.opt input{margin-top:3px}
+.opt input{margin-top:3px; flex-shrink:0}
+.opt > span:not(.mk){flex:1 1 60%; min-width:0}
 .opt.correct{background:var(--good-bg); border-color:var(--good)}
 .opt.wrong{background:var(--bad-bg); border-color:var(--bad)}
-.opt .mk{margin-left:auto; font-weight:700}
+.opt .mk{margin-left:auto; font-weight:700; flex-shrink:0; white-space:nowrap}
 .opt.correct .mk{color:var(--good)} .opt.wrong .mk{color:var(--bad)}
 .explain{margin-top:10px; font-size:.86rem; color:var(--muted)}
 
@@ -122,9 +127,20 @@ ul.quizlist li.done{border-color:var(--good)}
   position:sticky; bottom:0; background:linear-gradient(transparent,var(--bg) 30%);
   padding:16px 0 8px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
 }
+.sticky-actions .bar{flex:1 1 120px; min-width:90px}
 .scorebig{font-size:1.6rem; font-weight:800}
 .muted{color:var(--muted)}
-.spread{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap}
-@media(max-width:520px){
-  .topbar nav a[href="#/placement"]{display:none}
+.spread{display:flex; justify-content:space-between; align-items:center; gap:8px 12px; flex-wrap:wrap}
+.spread > *{min-width:0}
+.spread h1{overflow-wrap:anywhere}
+
+@media(max-width:560px){
+  main{padding:16px 14px}
+  .foot{padding-left:14px; padding-right:14px}
+  .card{padding:15px}
+  .q{padding:14px}
+  h2{font-size:1.08rem}
+  .btn{padding:11px 14px; font-size:.9rem}
+  .sticky-actions .btn{flex:1 1 auto; justify-content:center}
+  table.stats th,table.stats td{padding:8px 6px; font-size:.85rem}
 }

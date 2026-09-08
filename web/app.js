@@ -13,10 +13,10 @@ function loadProgress() {
 function saveProgress(p) {
   try { localStorage.setItem(PKEY, JSON.stringify(p)); } catch (e) {}
 }
-function recordAttempt(quizId, cefr, correct, total, perLevelCounts) {
+function recordAttempt(quizId, cefr, correct, total, perLevelCounts, title) {
   const p = loadProgress();
   p.attempts = p.attempts || [];
-  p.attempts.push({ quizId, cefr, correct, total, ts: Date.now() });
+  p.attempts.push({ quizId, cefr, correct, total, ts: Date.now(), title: title || '' });
   if (p.attempts.length > 400) p.attempts = p.attempts.slice(-400);
   p.best = p.best || {};
   const pct = total ? correct / total : 0;
@@ -239,7 +239,7 @@ function runQuiz(quiz, cefr, backHash) {
       labs[it.correct].classList.add('correct');
       labs[it.correct].querySelector('.mk').textContent = '✓ correct';
     });
-    recordAttempt(quiz.id, cefr, correct, items.length, perLevel);
+    recordAttempt(quiz.id, cefr, correct, items.length, perLevel, cefr + ' · ' + quiz.title);
 
     const pct = correct / items.length;
     actions.innerHTML = '';
@@ -313,7 +313,7 @@ function runPlacement(quiz) {
     });
     let totalC = 0, totalT = 0;
     for (const k in per) { totalC += per[k].c; totalT += per[k].t; }
-    recordAttempt('__placement__', 'B1', totalC, totalT, per);
+    recordAttempt('__placement__', 'B1', totalC, totalT, per, 'Placement test');
     // estimate: highest level where accuracy >= 70%
     let est = 'A1';
     for (const lv of LEVELS) { const s = per[lv]; if (s && s.c / s.t >= 0.7) est = lv; }
@@ -374,7 +374,7 @@ async function viewProgress() {
   for (const at of attempts.slice(-25).reverse()) {
     const pct = at.total ? at.correct / at.total : 0;
     ul.append($('li', null,
-      $('div', null, $('div', { class: 't' }, at.quizId === '__placement__' ? 'Placement test' : at.quizId),
+      $('div', null, $('div', { class: 't' }, at.title || (at.quizId === '__placement__' ? 'Placement test' : at.quizId)),
         $('div', { class: 's' }, new Date(at.ts).toLocaleString())),
       $('span', { class: 'pill score' + (pct < 0.6 ? ' low' : '') }, `${at.correct}/${at.total}`)));
   }
