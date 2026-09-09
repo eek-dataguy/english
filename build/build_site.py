@@ -11,6 +11,12 @@ os.makedirs(OUT + '/topic', exist_ok=True)
 ihk = json.load(open('ihk_quizzes.json', encoding='utf-8'))
 tm = json.load(open('tm_quizzes.json', encoding='utf-8'))
 
+# Test Master parts. A and E interleave two tests across the columns of a page,
+# so they are segmented by the in-body "LEVEL / TEST - N" headers, not the page
+# footer (parse_tm.build). All three parts are validated against the answer keys.
+TM_PARTS_OK = {'A', 'B', 'E'}
+tm = [q for q in tm if q.get('part') in TM_PARTS_OK]
+
 LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1']
 CHUNK = 12
 

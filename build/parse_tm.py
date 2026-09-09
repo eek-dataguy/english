@@ -33,11 +33,22 @@ OPT = re.compile(r'^([A-D])\)\s*(.*)$')
 GAP = re.compile(r'_+\(?(\d{1,3})\)?_+')
 SKIP = re.compile(r'^(-|•|ELEMENTARY|PRE-?INTERMEDIATE|INTERMEDIATE|UPPER-?INTERMEDIATE|ADVANCED|TEST\s*[-–]|Book 1 Part|Choose |Fill in|Mark the|Find the correct|Only one answer|Complete the|Read the)', re.I)
 
-def reading_order(rows):
-    body = [(x, y, t) for x, y, t in rows if 40 < y < 775]
+def reading_order(rows, ymax=775):
+    body = [(x, y, t) for x, y, t in rows if 40 < y < ymax]
     left = sorted([r for r in body if r[0] < COL], key=lambda r: -r[1])
     right = sorted([r for r in body if r[0] >= COL], key=lambda r: -r[1])
     return [t for _, _, t in left + right]
+
+_LV = r'(ELEMENTARY|PRE-?INTERMEDIATE|INTERMEDIATE|UPPER-?INTERMEDIATE|ADVANCED)'
+LEVEL_HDR = re.compile(r'^' + _LV + r'$', re.I)
+TESTNUM_HDR = re.compile(r'^TEST\s*-\s*(\d+)$', re.I)
+COMBO_HDR = re.compile(r'^' + _LV + r'\s+TEST\s*-\s*(\d+)$', re.I)
+
+def _lvlname(s):
+    s = s.upper().replace('PRE INTERMEDIATE', 'PRE-INTERMEDIATE').replace('UPPER INTERMEDIATE', 'UPPER-INTERMEDIATE')
+    return {'ELEMENTARY': 'Elementary', 'PRE-INTERMEDIATE': 'Pre-Intermediate',
+            'INTERMEDIATE': 'Intermediate', 'UPPER-INTERMEDIATE': 'Upper-Intermediate',
+            'ADVANCED': 'Advanced'}.get(s, s.title())
 
 def _add_opt(q, L, txt):
     q['opts'][L] = ((q['opts'].get(L, '') + ' ' + txt).strip() if q['opts'].get(L) else txt.strip())
@@ -124,31 +135,67 @@ FOOT = {
 def build(part, qpages, akpages, levelmap, title_prefix, do_cloze=True):
     QP = load(qpages)
     AP = load(akpages)
-    footre = FOOT[part]
-    tests = {}
+    BULLET = re.compile(r'^[-•]\s*([A-Za-z][A-Za-z ,/&\'()]{2,48})\s*$')
+
+    # One flat reading-order stream for the whole part, then segment it by the
+    # in-body "LEVEL" + "TEST - N" headers (page footers are unreliable here:
+    # two tests can share the two columns of one page).
+    stream = []
+    for p in qpages:
+        stream += reading_order(QP[p], ymax=812)
+
+    tests = {}          # (level, num) -> [lines]
     topics = {}
     order = []
-    BULLET = re.compile(r'^[-•]\s*([A-Za-z][A-Za-z ,/&\'()]{2,48})\s*$')
-    for p in qpages:
-        rows = QP[p]
-        tid = None
-        for x, y, t in rows:
-            if y < 36:
-                mm = footre.match(t)
-                if mm:
-                    tid = (mm.group(1).title(), int(mm.group(2)))
-        if not tid:
+    cur = None
+    pend_lvl = None
+    last_qn = 0
+    for raw in stream:
+        t = raw.strip()
+        if not t:
             continue
-        if tid not in tests:
-            tests[tid] = []
-            topics[tid] = []
-            order.append(tid)
-        ro = reading_order(rows)
-        tests[tid] += ro
-        for ln in ro:
-            mb = BULLET.match(ln.strip())
-            if mb and len(topics[tid]) < 6:
-                topics[tid].append(mb.group(1).strip())
+        mc = COMBO_HDR.match(t)
+        if mc:
+            pend_lvl = _lvlname(mc.group(1))
+            t = 'TEST - ' + mc.group(2)   # fall through to the TESTNUM handler
+        ml = LEVEL_HDR.match(t)
+        if ml:
+            pend_lvl = _lvlname(ml.group(1))
+            continue
+        mn = TESTNUM_HDR.match(t)
+        if mn and pend_lvl:
+            tid = (pend_lvl, int(mn.group(1)))
+            if tid not in tests:
+                tests[tid] = []
+                topics[tid] = []
+                order.append(tid)
+            cur = tid
+            last_qn = 0
+            pend_lvl = None
+            continue
+        mq = QSTART.match(t)
+        if mq and cur is not None:
+            n = int(mq.group(1))
+            if n == 1 and last_qn >= 8:
+                # a new test whose header we failed to read
+                lvl0 = cur[0]
+                k = cur[1] + 1
+                while (lvl0, k) in tests:
+                    k += 1
+                tid = (lvl0, k)
+                tests[tid] = []
+                topics[tid] = []
+                order.append(tid)
+                cur = tid
+                last_qn = 0
+            elif n > last_qn:
+                last_qn = n
+        if cur is None:
+            continue
+        tests[cur].append(t)
+        mb = BULLET.match(t)
+        if mb and len(topics[cur]) < 6:
+            topics[cur].append(mb.group(1).strip())
     ak = parse_ak(AP, part)
     quizzes = []
     st = {'tests': 0, 'seen': 0, 'kept': 0, 'd_key': 0, 'd_opts': 0, 'd_stem': 0, 'cloze_fixed': 0}

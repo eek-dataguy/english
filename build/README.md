@@ -13,6 +13,14 @@ Turns the three source PDFs into the JSON the website loads (`../web/data/`).
 Test Master Parts C and D ("multi-level" tests) are skipped – they carry no clean
 per-question level label. Books 2–3 are vocabulary/reading, out of scope.
 
+**Part A/E layout gotcha:** two different tests often share the left/right columns
+of one physical page, so the page footer does *not* identify the test on it.
+`parse_tm.build` therefore segments the whole part into a single reading-order
+stream and starts a new test at each in-body `LEVEL` + `TEST - N` header (falling
+back to a question-number reset). Getting this wrong silently misaligns questions
+against the answer key – validate any parser change by checking a few known items
+(e.g. "Philippe ___ in London" must resolve to *lives*).
+
 ## Steps
 
 ```
