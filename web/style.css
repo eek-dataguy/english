@@ -122,17 +122,33 @@ ul.quizlist li.done{border-color:var(--good)}
 .opt .mk{margin-left:auto; font-weight:700; flex-shrink:0; white-space:nowrap}
 .opt.correct .mk{color:var(--good)} .opt.wrong .mk{color:var(--bad)}
 .explain{
-  margin-top:12px; padding:10px 12px; font-size:.9rem; line-height:1.5;
-  border:1px solid var(--line); border-radius:9px; background:var(--bg);
-  overflow-wrap:break-word;
+  margin-top:12px; font-size:.9rem; line-height:1.55; overflow-wrap:break-word;
+  display:flex; flex-direction:column; gap:8px;
 }
-.explain.miss{border-color:var(--bad); background:var(--bad-bg)}
+.explain .ex-answer,.explain .ex-rule{
+  padding:10px 12px; border:1px solid var(--line); border-radius:9px; background:var(--bg);
+}
+.explain .ex-rule{border-left:3px solid var(--accent)}
+.explain.miss .ex-answer{border-color:var(--bad); background:var(--bad-bg)}
 .explain .lbl{
   display:block; font-size:.68rem; font-weight:700; letter-spacing:.6px;
   text-transform:uppercase; color:var(--muted); margin-bottom:3px;
 }
+.explain b,.callout b,.tip-body b{color:var(--accent); font-weight:700}
 .explain .blank{color:var(--accent); font-weight:700; letter-spacing:normal}
-.explain.miss .blank{color:var(--bad)}
+.explain.miss .ex-answer .blank{color:var(--bad)}
+
+details.tip{
+  border:1px solid var(--line); border-radius:11px; background:var(--card);
+  padding:2px 14px; margin:14px 0;
+}
+details.tip summary{
+  cursor:pointer; font-weight:600; padding:10px 0; list-style:none;
+}
+details.tip summary::-webkit-details-marker{display:none}
+details.tip summary::before{content:'▸ '; color:var(--muted)}
+details.tip[open] summary::before{content:'▾ '}
+.tip-body{padding:0 0 12px; font-size:.92rem; line-height:1.6; color:var(--ink)}
 
 .sticky-actions{
   position:sticky; bottom:0; background:linear-gradient(transparent,var(--bg) 30%);

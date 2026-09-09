@@ -20,8 +20,14 @@ pip install pdfminer.six
 python decode_tests_pdf.py     # -> tests_dec.txt   (de-obfuscates the font cipher)
 python parse_ihk.py            # -> ihk_quizzes.json (english-test.net)
 python parse_tm.py             # -> tm_quizzes.json  (Test Master A/B/E, via pdfminer coords)
-python build_site.py           # -> ../web/data/*.json
+python build_site.py           # -> ../web/data/*.json  (uses classify.py)
 ```
+
+`classify.py` tags every question with a grammar topic (prepositions of time,
+conditionals, gerund/infinitive, …) from the option shape + the source test's
+topic label, and holds the short teaching note shown after each answer. The
+english-test.net set is mostly idioms / word-choice, so a large share lands in
+the `idioms-collocation` and `vocabulary` buckets — those are real topics too.
 
 `build_site.py` also drops questions whose options were corrupted by column-merge
 in the scanned PDF (long option strings, stray blanks, dialogue markers) – about

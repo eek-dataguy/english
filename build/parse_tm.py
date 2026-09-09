@@ -126,7 +126,9 @@ def build(part, qpages, akpages, levelmap, title_prefix, do_cloze=True):
     AP = load(akpages)
     footre = FOOT[part]
     tests = {}
+    topics = {}
     order = []
+    BULLET = re.compile(r'^[-•]\s*([A-Za-z][A-Za-z ,/&\'()]{2,48})\s*$')
     for p in qpages:
         rows = QP[p]
         tid = None
@@ -139,8 +141,14 @@ def build(part, qpages, akpages, levelmap, title_prefix, do_cloze=True):
             continue
         if tid not in tests:
             tests[tid] = []
+            topics[tid] = []
             order.append(tid)
-        tests[tid] += reading_order(rows)
+        ro = reading_order(rows)
+        tests[tid] += ro
+        for ln in ro:
+            mb = BULLET.match(ln.strip())
+            if mb and len(topics[tid]) < 6:
+                topics[tid].append(mb.group(1).strip())
     ak = parse_ak(AP, part)
     quizzes = []
     st = {'tests': 0, 'seen': 0, 'kept': 0, 'd_key': 0, 'd_opts': 0, 'd_stem': 0, 'cloze_fixed': 0}
@@ -188,6 +196,7 @@ def build(part, qpages, akpages, levelmap, title_prefix, do_cloze=True):
         if items:
             quizzes.append({'source': 'Test Master (Atalay Oguz)', 'part': part, 'src_level': lvl,
                             'cefr': levelmap[lvl], 'title': f'{title_prefix} - {lvl} Test {n}',
+                            'topic': '; '.join(dict.fromkeys(topics.get(tid, []))),
                             'num': n, 'questions': items})
     return quizzes, st
 
@@ -258,8 +267,8 @@ def build_partB(qpages, akpages):
         st['kept'] += len(items)
         if items:
             quizzes.append({'source': 'Test Master (Atalay Oguz)', 'part': 'B', 'src_level': band.group(0),
-                            'cefr': cefr, 'title': f'Grammar B - {topic} ({cefr})', 'num': idx,
-                            'questions': items})
+                            'cefr': cefr, 'title': f'Grammar B - {topic} ({cefr})', 'topic': topic,
+                            'num': idx, 'questions': items})
     return quizzes, st
 
 if __name__ == '__main__':

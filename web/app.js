@@ -13,7 +13,7 @@ function loadProgress() {
 function saveProgress(p) {
   try { localStorage.setItem(PKEY, JSON.stringify(p)); } catch (e) {}
 }
-function recordAttempt(quizId, cefr, correct, total, perLevelCounts, title) {
+function recordAttempt(quizId, cefr, correct, total, perLevelCounts, title, perCatCounts) {
   const p = loadProgress();
   p.attempts = p.attempts || [];
   p.attempts.push({ quizId, cefr, correct, total, ts: Date.now(), title: title || '' });
@@ -26,6 +26,11 @@ function recordAttempt(quizId, cefr, correct, total, perLevelCounts, title) {
   for (const k in add) {
     p.lvl[k] = p.lvl[k] || { c: 0, t: 0 };
     p.lvl[k].c += add[k].c; p.lvl[k].t += add[k].t;
+  }
+  p.cat = p.cat || {};
+  for (const k in (perCatCounts || {})) {
+    p.cat[k] = p.cat[k] || { c: 0, t: 0 };
+    p.cat[k].c += perCatCounts[k].c; p.cat[k].t += perCatCounts[k].t;
   }
   saveProgress(p);
 }
@@ -46,6 +51,24 @@ async function getLevel(lv) {
   levelCache[lv] = await fetch('data/level/' + lv + '.json').then(r => r.json());
   return levelCache[lv];
 }
+let TOPICS = null;
+async function getTopics() {
+  if (TOPICS) return TOPICS;
+  const j = await fetch('data/topics.json').then(r => r.json());
+  TOPICS = {};
+  for (const t of j.topics) TOPICS[t.id] = t;
+  return TOPICS;
+}
+const topicCache = {};
+async function getTopicPool(id) {
+  if (topicCache[id]) return topicCache[id];
+  topicCache[id] = await fetch('data/topic/' + id + '.json').then(r => r.json());
+  return topicCache[id];
+}
+function catAccuracy(id) {
+  const s = (loadProgress().cat || {})[id];
+  return s && s.t ? { pct: s.c / s.t, c: s.c, t: s.t } : null;
+}
 
 /* ---------- utils ---------- */
 const $ = (tag, attrs, ...kids) => {
@@ -62,7 +85,7 @@ const $ = (tag, attrs, ...kids) => {
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0;[a[i], a[j]] = [a[j], a[i]]; } return a; }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function stemHTML(s) { return esc(s).replace(/ ?_{3,} ?/g, ' <b class="blank">______</b> '); }
-function explainHTML(it) {
+function sentencePart(it) {
   if (it.fs) {
     let h = esc(it.fs);
     if (it.aw) {
@@ -72,6 +95,14 @@ function explainHTML(it) {
     return '<span class="lbl">Completed sentence</span>' + h;
   }
   return '<span class="lbl">Correct answer</span><b class="blank">' + esc(it.answerText || '') + '</b>';
+}
+function explainHTML(it) {
+  let html = '<div class="ex-answer">' + sentencePart(it) + '</div>';
+  const t = TOPICS && TOPICS[it.k];
+  if (t) {
+    html += '<div class="ex-rule"><span class="lbl">Rule · ' + esc(t.name) + '</span>' + t.note + '</div>';
+  }
+  return html;
 }
 function pctClass(p) { return p >= 0.8 ? 'good' : p >= 0.6 ? 'mid' : 'low'; }
 function clear() { APP.innerHTML = ''; }
@@ -87,17 +118,30 @@ async function viewHome() {
       `Do a few quizzes at each level; the dashboard shows where your accuracy drops.`)
   );
 
-  // weakest-level callout
+  // weakest-level + weakest-topic callout
   const accs = LEVELS.map(lv => ({ lv, a: levelAccuracy(lv) })).filter(x => x.a && x.a.t >= 5);
+  let weakTopic = null;
+  try {
+    await getTopics();
+    const p = loadProgress();
+    const cr = Object.keys(p.cat || {}).map(id => ({ id, s: p.cat[id] }))
+      .filter(x => x.s.t >= 5 && TOPICS[x.id]).map(x => ({ id: x.id, pct: x.s.c / x.s.t }));
+    cr.sort((a, b) => a.pct - b.pct);
+    if (cr.length) weakTopic = cr[0];
+  } catch (e) {}
   if (accs.length >= 2) {
     accs.sort((x, y) => x.a.pct - y.a.pct);
     const w = accs[0];
-    APP.append($('div', { class: 'callout warn' },
-      $('b', null, `Weakest so far: ${w.lv} `),
-      `— ${Math.round(w.a.pct * 100)}% correct over ${w.a.t} questions. Focus your practice here.`));
+    const c = $('div', { class: 'callout warn' },
+      $('b', null, `Weakest level: ${w.lv} `),
+      `— ${Math.round(w.a.pct * 100)}% over ${w.a.t} questions.`);
+    if (weakTopic) c.append($('br'), $('b', null, 'Weakest topic: '),
+      $('a', { href: '#/topic/' + weakTopic.id }, TOPICS[weakTopic.id].name),
+      ` (${Math.round(weakTopic.pct * 100)}%).`);
+    APP.append(c);
   } else {
     APP.append($('div', { class: 'callout' },
-      'New here? ', $('a', { href: '#/placement' }, 'Take the 22-question placement test'),
+      'New here? ', $('a', { href: '#/placement' }, 'Take the placement test'),
       ' for a quick level estimate, or just pick a level below.'));
   }
 
@@ -121,6 +165,7 @@ async function viewHome() {
   APP.append(grid);
   APP.append($('div', { class: 'row' },
     $('a', { class: 'btn', href: '#/placement' }, '▶ Placement test'),
+    $('a', { class: 'btn ghost', href: '#/topics' }, '📚 Practise by topic'),
     $('a', { class: 'btn ghost', href: '#/progress' }, 'My progress')));
 }
 
@@ -170,6 +215,7 @@ async function startRandom(lv) {
 async function viewQuiz(id) {
   clear();
   APP.append($('p', { class: 'muted' }, 'Loading quiz…'));
+  await getTopics();
   let quiz = null, lv = null;
   for (const L of LEVELS) {
     if (id.startsWith(L + '-')) { lv = L; break; }
@@ -181,16 +227,68 @@ async function viewQuiz(id) {
     if (found) { quiz = found; lv = L; break; }
   }
   if (!quiz) { clear(); APP.append($('p', null, 'Quiz not found. ', $('a', { href: '#/' }, 'Home'))); return; }
-  runQuiz(quiz, lv, '#/level/' + lv);
+  runQuiz(quiz, lv, '#/level/' + lv, () => startRandom(lv));
 }
 
-function runQuiz(quiz, cefr, backHash) {
+async function viewTopics() {
   clear();
+  const [tp] = await Promise.all([getTopics()]);
+  APP.append($('p', null, $('a', { href: '#/' }, '← Home')), $('h1', null, 'Practise by grammar topic'));
+  APP.append($('p', { class: 'lede' }, 'Every question is tagged with a grammar point. Drill a single point, or check the table on ' +
+    'your progress page to see which points you get wrong most.'));
+  const list = Object.values(TOPICS).slice().sort((a, b) => b.count - a.count);
+  const ul = $('ul', { class: 'quizlist' });
+  for (const t of list) {
+    const a = catAccuracy(t.id);
+    const li = $('li', null);
+    li.append($('div', null,
+      $('div', { class: 't' }, t.name),
+      $('div', { class: 's' }, `${t.count.toLocaleString()} questions` +
+        (a ? ` · your accuracy ${Math.round(a.pct * 100)}% (${a.c}/${a.t})` : ''))));
+    const right = $('div', { class: 'row' });
+    if (a) right.append($('span', { class: 'pill score' + (a.pct < 0.6 ? ' low' : '') }, Math.round(a.pct * 100) + '%'));
+    right.append($('a', { class: 'btn ghost', href: '#/topic/' + t.id }, 'Practise'));
+    li.append(right);
+    ul.append(li);
+  }
+  APP.append(ul);
+}
+
+async function viewTopic(id) {
+  clear();
+  await getTopics();
+  const t = TOPICS[id];
+  if (!t) { APP.append($('p', null, 'Unknown topic. ', $('a', { href: '#/topics' }, 'All topics'))); return; }
+  APP.append($('p', null, $('a', { href: '#/topics' }, '← All topics')));
+  APP.append($('h1', null, t.name));
+  APP.append($('div', { class: 'callout', html: t.note }));
+  const a = catAccuracy(id);
+  if (a) APP.append($('p', { class: 'muted' }, `So far: ${Math.round(a.pct * 100)}% correct over ${a.t} questions on this topic.`));
+  let pool;
+  try { pool = await getTopicPool(id); }
+  catch (e) { APP.append($('p', { class: 'muted' }, 'Not enough questions to build a focused set for this topic.')); return; }
+  APP.append($('div', { class: 'row' },
+    $('button', { class: 'btn', onclick: () => startTopic(id) }, '▶ Start ' + Math.min(12, pool.questions.length) + '-question set'),
+    $('span', { class: 'muted' }, `${pool.questions.length} questions in the pool, mixed levels`)));
+}
+
+async function startTopic(id) {
+  await getTopics();
+  const pool = await getTopicPool(id);
+  const qs = shuffle(pool.questions).slice(0, 12);
+  const quiz = { id: '__topic_' + id + '__', title: 'Topic: ' + pool.name, source: 'Grammar topic drill',
+    cat: id, questions: qs };
+  runQuiz(quiz, qs[0] && qs[0].cefr || 'B1', '#/topic/' + id, () => startTopic(id));
+}
+
+function runQuiz(quiz, cefr, backHash, nextFn) {
+  clear();
+  nextFn = nextFn || (() => startRandom(cefr));
   const items = shuffle(quiz.questions).map(it => {
     const order = shuffle(it.options.map((o, i) => i));
     return {
       stem: it.q, opts: order.map(i => it.options[i]),
-      correct: order.indexOf(it.answer), cefr: it.cefr || cefr,
+      correct: order.indexOf(it.answer), cefr: it.cefr || cefr, k: it.k || quiz.cat || 'general',
       fs: it.fs || '', aw: it.aw || '', answerText: it.options[it.answer]
     };
   });
@@ -202,6 +300,14 @@ function runQuiz(quiz, cefr, backHash) {
     $('h1', null, quiz.title),
     $('span', { class: 'tag ' + cefr }, cefr)));
   APP.append($('p', { class: 'muted' }, `${quiz.source} · choose the best option for each gap`));
+
+  const tip = TOPICS && TOPICS[quiz.cat];
+  if (tip) {
+    const d = $('details', { class: 'tip' });
+    d.append($('summary', null, '💡 Grammar tip · ' + tip.name),
+      $('div', { class: 'tip-body', html: tip.note }));
+    APP.append(d);
+  }
 
   const form = $('form', { onsubmit: e => e.preventDefault() });
   const qEls = items.map((it, qi) => {
@@ -239,14 +345,16 @@ function runQuiz(quiz, cefr, backHash) {
     if (graded) return;
     graded = true;
     let correct = 0;
-    const perLevel = {};
+    const perLevel = {}, perCat = {};
     items.forEach((it, qi) => {
       const labs = qEls[qi].querySelectorAll('.opt');
       labs.forEach(l => l.querySelector('input').disabled = true);
       const lvl = it.cefr;
       perLevel[lvl] = perLevel[lvl] || { c: 0, t: 0 };
       perLevel[lvl].t++;
-      if (picks[qi] === it.correct) { correct++; perLevel[lvl].c++; }
+      perCat[it.k] = perCat[it.k] || { c: 0, t: 0 };
+      perCat[it.k].t++;
+      if (picks[qi] === it.correct) { correct++; perLevel[lvl].c++; perCat[it.k].c++; }
       if (picks[qi] >= 0 && picks[qi] !== it.correct) {
         labs[picks[qi]].classList.add('wrong');
         labs[picks[qi]].querySelector('.mk').textContent = '✗ your answer';
@@ -255,15 +363,15 @@ function runQuiz(quiz, cefr, backHash) {
       labs[it.correct].querySelector('.mk').textContent = '✓ correct';
       qEls[qi].append($('div', { class: 'explain' + (picks[qi] !== it.correct ? ' miss' : ''), html: explainHTML(it) }));
     });
-    recordAttempt(quiz.id, cefr, correct, items.length, perLevel, cefr + ' · ' + quiz.title);
+    recordAttempt(quiz.id, cefr, correct, items.length, perLevel, cefr + ' · ' + quiz.title, perCat);
 
     const pct = correct / items.length;
     actions.innerHTML = '';
     actions.append(
       $('span', { class: 'scorebig' }, `${correct} / ${items.length}`),
       $('span', { class: 'pill score' + (pct < 0.6 ? ' low' : '') }, Math.round(pct * 100) + '%'),
-      $('button', { class: 'btn', onclick: () => startRandom(cefr) }, 'Another ' + cefr + ' quiz'),
-      $('a', { class: 'btn ghost', href: backHash }, 'Back to ' + cefr),
+      $('button', { class: 'btn', onclick: nextFn }, 'Another quiz'),
+      $('a', { class: 'btn ghost', href: backHash }, 'Back'),
       $('a', { class: 'btn ghost', href: '#/progress' }, 'My progress')
     );
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -278,6 +386,7 @@ async function viewPlacement() {
   clear();
   APP.append($('p', null, $('a', { href: '#/' }, '← Home')), $('h1', null, 'Placement test'));
   APP.append($('p', { class: 'lede' }, 'About 22 questions spread across A1–C1. Your score at each level gives a rough estimate of where you stand.'));
+  await getTopics();
   const data = await fetch('data/placement.json').then(r => r.json());
   const quiz = { id: '__placement__', title: 'Placement test', source: 'Mixed levels', questions: data.questions };
   runPlacement(quiz);
@@ -289,7 +398,7 @@ function runPlacement(quiz) {
     const order = shuffle(it.options.map((o, i) => i));
     return {
       stem: it.q, opts: order.map(i => it.options[i]),
-      correct: order.indexOf(it.answer), cefr: it.cefr,
+      correct: order.indexOf(it.answer), cefr: it.cefr, k: it.k || 'general',
       fs: it.fs || '', aw: it.aw || '', answerText: it.options[it.answer]
     };
   });
@@ -321,20 +430,22 @@ function runPlacement(quiz) {
     btn.textContent = n < items.length ? `Answer all (${items.length - n} left)` : 'See my level';
   }
   function grade() {
-    const per = {};
+    const per = {}, perCat = {};
     items.forEach((it, qi) => {
       const labs = qEls[qi].querySelectorAll('.opt');
       labs.forEach(l => l.querySelector('input').disabled = true);
       per[it.cefr] = per[it.cefr] || { c: 0, t: 0 };
       per[it.cefr].t++;
-      if (picks[qi] === it.correct) per[it.cefr].c++;
+      perCat[it.k] = perCat[it.k] || { c: 0, t: 0 };
+      perCat[it.k].t++;
+      if (picks[qi] === it.correct) { per[it.cefr].c++; perCat[it.k].c++; }
       if (picks[qi] >= 0 && picks[qi] !== it.correct) { labs[picks[qi]].classList.add('wrong'); labs[picks[qi]].querySelector('.mk').textContent = '✗'; }
       labs[it.correct].classList.add('correct'); labs[it.correct].querySelector('.mk').textContent = '✓';
       qEls[qi].append($('div', { class: 'explain' + (picks[qi] !== it.correct ? ' miss' : ''), html: explainHTML(it) }));
     });
     let totalC = 0, totalT = 0;
     for (const k in per) { totalC += per[k].c; totalT += per[k].t; }
-    recordAttempt('__placement__', 'B1', totalC, totalT, per, 'Placement test');
+    recordAttempt('__placement__', 'B1', totalC, totalT, per, 'Placement test', perCat);
     // estimate: highest level where accuracy >= 70%
     let est = 'A1';
     for (const lv of LEVELS) { const s = per[lv]; if (s && s.c / s.t >= 0.7) est = lv; }
@@ -385,9 +496,44 @@ async function viewProgress() {
   if (rows.length >= 2) {
     rows.sort((x, y) => x.pct - y.pct);
     APP.append($('div', { class: 'callout warn' },
-      $('b', null, 'Priority: '),
+      $('b', null, 'Priority levels: '),
       rows.filter(r => r.pct < 0.75).map(r => `${r.lv} (${Math.round(r.pct * 100)}%)`).join(', ') ||
       'You are above 75% everywhere — try the next level up.'));
+  }
+
+  // ---- by grammar topic ----
+  await getTopics();
+  const catRows = [];
+  for (const id in (p.cat || {})) {
+    const s = p.cat[id];
+    if (!s.t || !TOPICS[id]) continue;
+    catRows.push({ id, name: TOPICS[id].name, pct: s.c / s.t, c: s.c, t: s.t });
+  }
+  if (catRows.length) {
+    catRows.sort((a, b) => a.pct - b.pct);
+    APP.append($('h2', null, 'Accuracy by grammar topic'));
+    const weak = catRows.filter(r => r.t >= 4 && r.pct < 0.7);
+    if (weak.length) {
+      APP.append($('div', { class: 'callout warn' },
+        $('b', null, 'Weakest topics: '),
+        weak.slice(0, 4).map(r => `${r.name} ${Math.round(r.pct * 100)}%`).join(' · ')));
+    }
+    const ct = $('table', { class: 'stats' });
+    ct.append($('tr', null, $('th', null, 'Topic'), $('th', null, ''), $('th', { class: 'num' }, 'Qs'),
+      $('th', { class: 'num' }, '%'), $('th', null, '')));
+    for (const r of catRows) {
+      ct.append($('tr', null,
+        $('td', null, r.name),
+        $('td', { style: 'width:35%' }, $('div', { class: 'bar ' + pctClass(r.pct) }, $('i', { style: `width:${Math.round(r.pct * 100)}%` }))),
+        $('td', { class: 'num' }, r.t),
+        $('td', { class: 'num' }, Math.round(r.pct * 100) + '%'),
+        $('td', null, $('a', { class: 'pill', href: '#/topic/' + r.id }, 'practise'))));
+    }
+    APP.append(ct);
+  } else {
+    APP.append($('h2', null, 'Accuracy by grammar topic'),
+      $('p', { class: 'muted' }, 'Do a few quizzes and this table will show which grammar points you miss most. ',
+        $('a', { href: '#/topics' }, 'Browse topics')));
   }
 
   APP.append($('h2', null, 'Recent attempts'));
@@ -428,6 +574,8 @@ function route() {
   if (!seg) return viewHome();
   if (seg === 'level') return viewLevel(arg);
   if (seg === 'quiz') return viewQuiz(decodeURIComponent(arg || ''));
+  if (seg === 'topics') return viewTopics();
+  if (seg === 'topic') return viewTopic(decodeURIComponent(arg || ''));
   if (seg === 'placement') return viewPlacement();
   if (seg === 'progress') return viewProgress();
   return viewHome();
