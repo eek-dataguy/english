@@ -98,9 +98,8 @@ function sentencePart(it) {
 }
 function explainHTML(it) {
   let html = '<div class="ex-answer">' + sentencePart(it) + '</div>';
-  const t = TOPICS && TOPICS[it.k];
-  if (t) {
-    html += '<div class="ex-rule"><span class="lbl">Rule · ' + esc(t.name) + '</span>' + t.note + '</div>';
+  if (it.x) {
+    html += '<div class="ex-rule"><span class="lbl">Why</span>' + it.x + '</div>';
   }
   return html;
 }
@@ -302,7 +301,7 @@ function runQuiz(quiz, cefr, backHash, nextFn) {
   APP.append($('p', { class: 'muted' }, `${quiz.source} · choose the best option for each gap`));
 
   const tip = TOPICS && TOPICS[quiz.cat];
-  if (tip) {
+  if (tip && tip.specific) {
     const d = $('details', { class: 'tip' });
     d.append($('summary', null, '💡 Grammar tip · ' + tip.name),
       $('div', { class: 'tip-body', html: tip.note }));

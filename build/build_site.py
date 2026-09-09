@@ -3,6 +3,17 @@
 import json, os, re, hashlib, random
 from collections import defaultdict, Counter
 from classify import classify, TOPICS
+from explain import explain
+
+# categories whose one-line note is genuinely a "rule" worth showing as a tip;
+# the rest (idioms / vocabulary / mixed / bare verb-forms) get no note.
+SPECIFIC_CATS = {
+    'prepositions-time', 'prepositions-place', 'articles', 'present-simple-continuous',
+    'past-simple-continuous', 'present-perfect', 'future', 'conditionals', 'modals',
+    'gerund-infinitive', 'comparatives-superlatives', 'quantifiers', 'countable-uncountable',
+    'relative-clauses', 'question-tags', 'questions-word-order', 'passive', 'reported-speech',
+    'pronouns', 'verb-to-be', 'irregular-verbs', 'used-to', 'so-such-too-enough',
+}
 
 OUT = '../web/data'
 os.makedirs(OUT + '/level', exist_ok=True)
@@ -48,6 +59,9 @@ def clean_q(it, hint):
         out['fs'] = fs
         if aw:
             out['aw'] = aw
+    x = explain(q, opts, it['answer'])
+    if x:
+        out['x'] = x
     return out
 
 quizzes = []
@@ -102,6 +116,7 @@ for cid, meta in TOPICS.items():
     byl = Counter(lv for lv, _ in entries)
     topics_meta.append({
         'id': cid, 'name': meta['name'], 'note': meta['note'],
+        'specific': cid in SPECIFIC_CATS,
         'count': len(entries),
         'byLevel': {lv: byl.get(lv, 0) for lv in LEVELS if byl.get(lv)},
     })
@@ -140,7 +155,8 @@ DESC = {
 }
 
 index = {'levels': [], 'topics': [{'id': t['id'], 'name': t['name'], 'count': t['count'],
-                                   'byLevel': t['byLevel'], 'practisable': 'pool' in t}
+                                   'byLevel': t['byLevel'], 'practisable': 'pool' in t,
+                                   'specific': t['specific']}
                                   for t in topics_meta],
          'totalQuizzes': len(quizzes),
          'totalQuestions': sum(q['n'] for q in quizzes),
