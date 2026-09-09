@@ -4,6 +4,8 @@
 # Regeneratable extraction intermediates
 build/tests_dec.txt
 build/*_quizzes.json
+__pycache__/
+*.pyc
 
 # OS / editor
 .DS_Store
